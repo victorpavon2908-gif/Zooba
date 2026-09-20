@@ -1991,10 +1991,11 @@ export class GameEngine {
       y: wallY,
       angle: p.angle,
       width: 75,
-      height3D: 60,
+      height: 60,
       health: 320,
       maxHealth: 320,
       duration: 30, // 30s tactical lifespan
+      maxDuration: 30,
       pulsePhase: 0,
     };
 
