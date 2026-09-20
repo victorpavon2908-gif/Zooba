@@ -69,7 +69,9 @@ export class IsometricRenderer {
     theme: 'warehouse' | 'biohazard' | 'military',
     highGraphics: boolean,
     healthStations: HealthStation[] = [],
-    healthPickups: HealthPickup[] = []
+    healthPickups: HealthPickup[] = [],
+    glooWalls: GlooWall[] = [],
+    warStructures: WarStructure[] = []
   ) {
     const dpr = window.devicePixelRatio || 1;
     // Calculate logical screen size in CSS pixels for pixel-perfect viewport centering
@@ -116,6 +118,19 @@ export class IsometricRenderer {
         depth,
         draw: () => this.drawHealthPickup(ctx, hp, camX, camY, w, h),
       });
+    });
+
+    // 3D WAR WORLD: ruined houses, bunkers, trucks, rubble and broken walls
+    warStructures.forEach((structure) => {
+      if (structure.type === 'room_floor') return;
+      const depth = structure.x + structure.y + structure.w * 0.5 + structure.h * 0.5;
+      renderQueue.push({ depth, draw: () => this.drawWarStructure(ctx, structure, camX, camY, w, h, theme) });
+    });
+
+    // Deployable Gloo Walls
+    glooWalls.forEach((gloo) => {
+      const depth = gloo.x + gloo.y;
+      renderQueue.push({ depth, draw: () => this.drawGlooWall(ctx, gloo, camX, camY, w, h) });
     });
 
     // Walls
@@ -313,6 +328,51 @@ export class IsometricRenderer {
       ctx.fill();
       ctx.restore();
     });
+  }
+
+  private static drawGlooWall(ctx: CanvasRenderingContext2D, gloo: GlooWall, camX: number, camY: number, w: number, h: number) {
+    const p = this.toScreen(gloo.x, gloo.y, camX, camY, w, h);
+    const pulse = 0.7 + Math.sin(gloo.pulsePhase) * 0.15;
+    const wallW = Math.max(60, gloo.width * 1.25);
+    const wallH = Math.max(42, gloo.height || 60);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(gloo.angle * 0.35);
+    ctx.shadowColor = 'rgba(34,211,238,0.9)'; ctx.shadowBlur = 18;
+    ctx.fillStyle = `rgba(56,189,248,${0.24 * pulse})`;
+    ctx.strokeStyle = '#67e8f9'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-wallW*0.5,8); ctx.lineTo(-wallW*0.38,-wallH); ctx.lineTo(-wallW*0.12,-wallH-12);
+    ctx.lineTo(wallW*0.12,-wallH-5); ctx.lineTo(wallW*0.38,-wallH-14); ctx.lineTo(wallW*0.5,8); ctx.closePath();
+    ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(207,250,254,0.75)'; ctx.lineWidth = 1;
+    for (let x=-wallW*0.35; x<=wallW*0.35; x+=wallW*0.18) { ctx.beginPath(); ctx.moveTo(x,-wallH+8); ctx.lineTo(x*0.92,0); ctx.stroke(); }
+    const hp=Math.max(0,Math.min(1,gloo.health/Math.max(1,gloo.maxHealth)));
+    ctx.fillStyle='rgba(2,6,23,0.8)'; ctx.fillRect(-wallW*0.5,16,wallW,5);
+    ctx.fillStyle='#22d3ee'; ctx.fillRect(-wallW*0.5,16,wallW*hp,5);
+    ctx.restore();
+  }
+
+  private static drawWarStructure(ctx: CanvasRenderingContext2D, structure: WarStructure, camX: number, camY: number, w: number, h: number, theme: string) {
+    const b0=this.toScreen(structure.x,structure.y,camX,camY,w,h), b1=this.toScreen(structure.x+structure.w,structure.y,camX,camY,w,h), b2=this.toScreen(structure.x+structure.w,structure.y+structure.h,camX,camY,w,h), b3=this.toScreen(structure.x,structure.y+structure.h,camX,camY,w,h);
+    const height=Math.max(8,structure.height3D||18), t0={x:b0.x,y:b0.y-height}, t1={x:b1.x,y:b1.y-height}, t2={x:b2.x,y:b2.y-height}, t3={x:b3.x,y:b3.y-height};
+    ctx.save();
+    let front='#3f4752',side='#202733',roof='#59636e';
+    if(structure.type==='ruined_house'){front='#6b6255';side='#38332e';roof='#817767';}
+    if(structure.type==='military_truck'){front='#46534b';side='#28332e';roof='#65746a';}
+    if(structure.type==='sandbag_bunker'){front='#8a795e';side='#514834';roof='#a28d6e';}
+    if(structure.type==='rubble_pile'){front='#77736d';side='#4d4a46';roof='#96918a';}
+    if(structure.type==='barbed_wire'){front='#4b5563';side='#1f2937';roof='#64748b';}
+    ctx.shadowColor='rgba(0,0,0,0.6)';ctx.shadowBlur=12;ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse((b0.x+b2.x)/2,(b0.y+b2.y)/2+10,Math.max(30,Math.abs(b1.x-b0.x)*0.45),Math.max(12,Math.abs(b3.y-b0.y)*0.35),0,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    ctx.beginPath();ctx.moveTo(b1.x,b1.y);ctx.lineTo(b2.x,b2.y);ctx.lineTo(t2.x,t2.y);ctx.lineTo(t1.x,t1.y);ctx.closePath();ctx.fillStyle=side;ctx.fill();ctx.strokeStyle='rgba(255,255,255,0.16)';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(b3.x,b3.y);ctx.lineTo(b2.x,b2.y);ctx.lineTo(t2.x,t2.y);ctx.lineTo(t3.x,t3.y);ctx.closePath();ctx.fillStyle=front;ctx.fill();ctx.strokeStyle='rgba(0,0,0,0.45)';ctx.stroke();
+    ctx.beginPath();ctx.moveTo(t0.x,t0.y);ctx.lineTo(t1.x,t1.y);ctx.lineTo(t2.x,t2.y);ctx.lineTo(t3.x,t3.y);ctx.closePath();ctx.fillStyle=roof;ctx.fill();ctx.strokeStyle='rgba(255,255,255,0.18)';ctx.stroke();
+    if(structure.type==='ruined_house'){
+      const mx=(t3.x+t2.x)/2,my=(t3.y+t2.y)/2;ctx.fillStyle='rgba(10,10,10,0.72)';ctx.fillRect(mx-34,my-10,68,26);ctx.strokeStyle='rgba(234,179,8,0.75)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(t3.x,t3.y);ctx.lineTo(t2.x,t2.y);ctx.stroke();ctx.strokeStyle='rgba(239,68,68,0.65)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(mx-18,my-8);ctx.lineTo(mx+6,my+10);ctx.moveTo(mx+18,my-8);ctx.lineTo(mx-5,my+10);ctx.stroke();
+    }
+    if(structure.type==='military_truck'){ctx.fillStyle='rgba(15,23,42,0.85)';ctx.beginPath();ctx.ellipse((b3.x+b2.x)/2,(b3.y+b2.y)/2-8,24,12,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111827';ctx.beginPath();ctx.arc(b3.x+18,b3.y+3,10,0,Math.PI*2);ctx.arc(b2.x-18,b2.y+3,10,0,Math.PI*2);ctx.fill();}
+    if(structure.label){const lx=(t3.x+t2.x)/2,ly=(t3.y+t2.y)/2-height*0.12;ctx.font='bold 9px monospace';ctx.textAlign='center';ctx.fillStyle='rgba(226,232,240,0.78)';ctx.fillText(structure.label,lx,ly);}
+    ctx.restore();
   }
 
   private static drawWall(
