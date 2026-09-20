@@ -185,6 +185,15 @@ export const HUD: React.FC<HUDProps> = ({
             </span>
           </div>
 
+          {/* Shield Bar */}
+          <div id="shield-bar-container" className="flex items-center gap-2 bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-cyan-500/30 shadow-xl">
+            <ShieldAlert className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <div className="flex-1 h-2.5 bg-slate-950 rounded-xs overflow-hidden border border-slate-700 p-0.5">
+              <div className="h-full rounded-xs bg-gradient-to-r from-cyan-600 to-cyan-300 transition-all duration-200" style={{ width: `${Math.max(0, Math.min(100, Math.round((player.shield / Math.max(1, player.maxShield)) * 100)))}%` }} />
+            </div>
+            <span className="font-tech font-bold text-[10px] text-cyan-200 min-w-[42px] text-right">{Math.round(player.shield)}/{Math.round(player.maxShield)}</span>
+          </div>
+
           {/* Stamina Bar */}
           <div id="stamina-bar-container" className="flex items-center gap-2 bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-700/80 shadow-md">
             <Zap className={`w-3.5 h-3.5 ${player.isSprinting ? 'text-amber-300 animate-bounce' : 'text-amber-400'} shrink-0`} />
