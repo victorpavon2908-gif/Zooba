@@ -12,6 +12,7 @@ interface TouchControlsProps {
   onHeal: () => void;
   onInteract: () => void;
   onGrenade?: () => void;
+  onDeployGlooWall?: () => void;
   onToggleAim?: () => void;
   onSprint?: (sprinting: boolean) => void;
   onMelee?: () => void;
@@ -42,6 +43,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   onHeal,
   onInteract,
   onGrenade,
+  onDeployGlooWall,
   onToggleAim,
   onSprint,
   onMelee,
@@ -291,10 +293,10 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </div>
       )}
 
-      {/* Action Buttons Cluster (Bottom Right) */}
-      <div className="absolute bottom-28 right-4 flex flex-col items-end gap-2.5 pointer-events-auto">
+      {/* Action Buttons Cluster: fixed grid, each control gets a dedicated touch slot */}
+      <div id="mobile-combat-controls" className="absolute bottom-5 right-3 sm:bottom-8 sm:right-5 grid grid-cols-4 gap-2 pointer-events-auto items-end">
         {/* Row 1: Tactical Targeting & Weapon Switch */}
-        <div className="flex items-center gap-2">
+        <div className="contents">
           {/* Weapon Switch Button */}
           {onSwitchWeapon && (
             <button
@@ -346,8 +348,17 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
           )}
         </div>
 
+          {onDeployGlooWall && (
+            <button id="btn-touch-gloo" onClick={onDeployGlooWall}
+              className="w-12 h-12 rounded-xl border-2 border-cyan-400/70 bg-cyan-950/90 active:scale-95 text-cyan-200 shadow-lg shadow-cyan-500/30 flex flex-col items-center justify-center font-tech"
+              title="Desplegar muro de protección">
+              <span className="text-lg leading-none">◆</span>
+              <span className="text-[8px] font-bold">GLOO</span>
+            </button>
+          )}
+
         {/* Row 2: Melee CQC Attack, Heal and Interact */}
-        <div className="flex items-center gap-2.5">
+        <div className="contents">
           {/* Tactical Melee Attack */}
           {onMelee && (
             <button
@@ -392,7 +403,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
         </div>
 
         {/* Row 2: Dodge Roll and Reload */}
-        <div className="flex items-center gap-3">
+        <div className="contents">
           {/* Reload Button */}
           <button
             id="btn-touch-reload"
