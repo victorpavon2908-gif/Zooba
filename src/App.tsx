@@ -251,7 +251,9 @@ export default function App() {
             engine.mission.theme,
             settings.highGraphics,
             engine.healthStations,
-            engine.healthPickups
+            engine.healthPickups,
+            engine.glooWalls,
+            engine.warStructures
           );
         }
 
@@ -498,6 +500,10 @@ export default function App() {
     engineRef.current?.throwGrenade();
   }, []);
 
+  const handleTouchGlooWall = useCallback(() => {
+    engineRef.current?.deployGlooWall();
+  }, []);
+
   const handleTouchToggleAim = useCallback(() => {
     engineRef.current?.toggleAimMode();
   }, []);
@@ -612,6 +618,7 @@ export default function App() {
             onUseItem={handleUseLootItem}
             onDropItem={handleDropLootItem}
             onGrenade={handleTouchGrenade}
+            onDeployGlooWall={handleTouchGlooWall}
             onToggleAim={handleTouchToggleAim}
             onSwitchWeapon={(wId) => engine.switchWeapon(wId)}
             onReload={() => engine.triggerReload()}
