@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#064e3b" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#022c22" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="innerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="512" height="512" rx="100" fill="#030712"/>
+  <circle cx="256" cy="256" r="230" fill="url(#bgGlow)"/>
+
+  <!-- Tactical Hex Shield Outline -->
+  <polygon points="256,42 432,132 432,360 256,468 80,360 80,132" fill="url(#innerGrad)" stroke="url(#shieldGrad)" stroke-width="12" stroke-linejoin="round"/>
+
+  <!-- Inner Radar Circles -->
+  <circle cx="256" cy="250" r="140" fill="none" stroke="#059669" stroke-width="3" stroke-dasharray="8 8" opacity="0.4"/>
+  <circle cx="256" cy="250" r="90" fill="none" stroke="#10b981" stroke-width="3" opacity="0.6"/>
+
+  <!-- Crosshair Reticle -->
+  <line x1="256" y1="120" x2="256" y2="380" stroke="#34d399" stroke-width="4" opacity="0.5"/>
+  <line x1="126" y1="250" x2="386" y2="250" stroke="#34d399" stroke-width="4" opacity="0.5"/>
+
+  <!-- Tactical Mercenary Skull / Helmet Silhouette -->
+  <!-- Helmet Dome -->
+  <path d="M196,200 C196,150 316,150 316,200 L326,250 C326,280 300,310 256,310 C212,310 186,280 186,250 Z" fill="#1e293b" stroke="#38bdf8" stroke-width="6"/>
+
+  <!-- Tactical NVG Goggles / Visor -->
+  <rect x="194" y="210" width="124" height="34" rx="8" fill="#0284c7" stroke="#38bdf8" stroke-width="4"/>
+  <circle cx="230" cy="227" r="11" fill="#38bdf8" opacity="0.9"/>
+  <circle cx="282" cy="227" r="11" fill="#38bdf8" opacity="0.9"/>
+  <circle cx="230" cy="227" r="5" fill="#ffffff"/>
+  <circle cx="282" cy="227" r="5" fill="#ffffff"/>
+
+  <!-- Gasmask / Jaw Filters -->
+  <path d="M226,270 L286,270 L276,305 L236,305 Z" fill="#0f172a" stroke="#475569" stroke-width="4"/>
+  <circle cx="206" cy="285" r="14" fill="#334155" stroke="#64748b" stroke-width="3"/>
+  <circle cx="306" cy="285" r="14" fill="#334155" stroke="#64748b" stroke-width="3"/>
+
+  <!-- Text "BOUNTY RUN" -->
+  <text x="256" y="415" font-family="'Impact', 'Arial Black', sans-serif" font-size="44" font-weight="bold" fill="#34d399" text-anchor="middle" letter-spacing="4">BOUNTY RUN</text>
+  <text x="256" y="445" font-family="'Arial', sans-serif" font-size="18" font-weight="bold" fill="#94a3b8" text-anchor="middle" letter-spacing="6">2D EXTRACTION</text>
+</svg>
