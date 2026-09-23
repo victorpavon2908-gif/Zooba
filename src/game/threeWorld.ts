@@ -929,7 +929,7 @@ export class ThreeWorld {
     // 3. 2.5D Mobile Tactical Camera (Elevated, significantly zoomed-out isometric perspective)
     // Zoom Presets: 'wide' (Default - broad tactical battlefield overview), 'standard', 'close'
     const zoomFactors: Record<string, { elevation: number; distZ: number; fov: number; lead: number }> = {
-      wide: { elevation: 350, distZ: 260, fov: 56, lead: 42 },
+      wide: { elevation: 430, distZ: 320, fov: 68, lead: 50 },
       standard: { elevation: 300, distZ: 220, fov: 53, lead: 38 },
       close: { elevation: 250, distZ: 180, fov: 49, lead: 32 },
     };
