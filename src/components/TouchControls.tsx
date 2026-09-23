@@ -8,6 +8,7 @@ interface TouchControlsProps {
   onAim: (vector: { x: number; y: number }) => void;
   onShoot: (isShooting: boolean) => void;
   onDodge: () => void;
+  onJump?: () => void;
   onCrouch?: () => void;
   onReload: () => void;
   onHeal: () => void;
@@ -44,6 +45,7 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
   onAim,
   onShoot,
   onDodge,
+  onJump,
   onCrouch,
   onReload,
   onHeal,
@@ -420,6 +422,23 @@ export const TouchControls: React.FC<TouchControlsProps> = ({
             <Shield className="w-4 h-4 text-sky-100" />
             <span className="text-[7px] font-bold">RODAR</span>
           </button>
+
+          {/* SALTAR / TACTICAL JUMP (Above Dodge & Crouch, fast thumb reach) */}
+          {onJump && (
+            <button
+              id="btn-touch-jump"
+              onClick={onJump}
+              className="absolute w-12 h-12 sm:w-13 sm:h-13 rounded-full border-2 flex flex-col items-center justify-center font-tech shadow-xl transition-all active:scale-90 z-20 bg-gradient-to-b from-amber-500 to-amber-700 active:from-amber-400 active:to-amber-600 border-amber-200 text-white shadow-amber-600/50"
+              style={{
+                bottom: isSmallPhone ? '74px' : '86px',
+                right: isSmallPhone ? '136px' : '155px',
+              }}
+              title="Saltar Cobertura / Esquivar Fuego"
+            >
+              <span className="text-base leading-none">🦘</span>
+              <span className="text-[7px] font-bold mt-0.5 tracking-wider">SALTAR</span>
+            </button>
+          )}
 
           {/* AGACHARSE / CROUCH (Below-left of Fire button) */}
           {onCrouch && (

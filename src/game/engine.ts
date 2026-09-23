@@ -884,6 +884,37 @@ export class GameEngine {
     if (p.rollCooldown > 0) p.rollCooldown -= dt;
     if (p.grenadeCooldown > 0) p.grenadeCooldown -= dt;
 
+    // Hitmarker timer decay
+    if (p.hitmarkerTimer && p.hitmarkerTimer > 0) {
+      p.hitmarkerTimer -= dt;
+      if (p.hitmarkerTimer <= 0) {
+        p.hitmarkerTimer = 0;
+        p.hitmarkerIsHeadshot = false;
+      }
+    }
+
+    // Jump physics & vertical ballistic arc (with gravity and landing impact)
+    if (p.jumpCooldown && p.jumpCooldown > 0) p.jumpCooldown -= dt;
+    if (p.isJumping) {
+      p.jumpVz = (p.jumpVz || 0) - 580 * dt; // gravity pull
+      p.jumpZ = Math.max(0, (p.jumpZ || 0) + (p.jumpVz || 0) * dt);
+      if (p.jumpZ <= 0 && (p.jumpVz || 0) <= 0) {
+        p.jumpZ = 0;
+        p.jumpVz = 0;
+        p.isJumping = false;
+        p.jumpCooldown = 0.45;
+        sound.playLand();
+        if (navigator.vibrate && this.settings.haptics) {
+          navigator.vibrate(12);
+        }
+        for (let lp = 0; lp < 8; lp++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 20 + Math.random() * 35;
+          this.addParticle(p.x, p.y, Math.cos(ang) * spd, Math.sin(ang) * spd, 0.25, 4, 'rgba(148, 163, 184, 0.55)');
+        }
+      }
+    }
+
     // Dodge Roll physics
     if (p.isRolling) {
       p.rollTimer -= dt;
@@ -930,12 +961,13 @@ export class GameEngine {
       const normX = inputX / (mag > 1 ? mag : 1);
       const normY = inputY / (mag > 1 ? mag : 1);
       const sprintMultiplier = (p.isSprinting && mag > 0.1) ? 1.6 : 1.0;
-      const currentSpeed = p.speed * sprintMultiplier;
+      const crouchMultiplier = p.isCrouching ? 0.6 : 1.0;
+      const currentSpeed = p.speed * sprintMultiplier * crouchMultiplier;
 
       // Snappy, commercial-grade immediate acceleration & momentum
       const targetVx = normX * currentSpeed;
       const targetVy = normY * currentSpeed;
-      const accelRate = 36;
+      const accelRate = 42;
       p.vx += (targetVx - p.vx) * Math.min(1, dt * accelRate);
       p.vy += (targetVy - p.vy) * Math.min(1, dt * accelRate);
 
@@ -945,7 +977,7 @@ export class GameEngine {
       }
     } else {
       // Snappy responsive braking (immediate stop, no sluggish ice-skating drift)
-      const brakeRate = 42;
+      const brakeRate = 48;
       p.vx += (0 - p.vx) * Math.min(1, dt * brakeRate);
       p.vy += (0 - p.vy) * Math.min(1, dt * brakeRate);
       if (Math.abs(p.vx) < 1.5) p.vx = 0;
@@ -1313,6 +1345,24 @@ export class GameEngine {
     if (navigator.vibrate && this.settings.haptics) {
       navigator.vibrate(40);
     }
+  }
+
+  public triggerJump(): boolean {
+    const p = this.player;
+    if (p.isJumping || p.isRolling || (p.jumpCooldown && p.jumpCooldown > 0)) return false;
+    p.isJumping = true;
+    p.jumpZ = 0;
+    p.jumpVz = 215; // Smooth parabolic arc
+    p.jumpCooldown = 0.52;
+    sound.playJump();
+    if (navigator.vibrate && this.settings.haptics) {
+      navigator.vibrate(18);
+    }
+    // Launch dust puff particles
+    for (let i = 0; i < 6; i++) {
+      this.addParticle(p.x, p.y, (Math.random() - 0.5) * 22, (Math.random() - 0.5) * 22, 0.25, 3.5, 'rgba(148, 163, 184, 0.5)');
+    }
+    return true;
   }
 
   public toggleAimMode() {
@@ -1936,9 +1986,15 @@ export class GameEngine {
       // Player collision (enemy bullets)
       if (!collided && !b.fromPlayer) {
         const p = this.player;
-        if (!p.isRolling && Math.hypot(b.x - p.x, b.y - p.y) < p.radius + b.radius) {
+        const isJumpingDodge = p.isJumping && (p.jumpZ || 0) > 12;
+        if (!p.isRolling && !isJumpingDodge && Math.hypot(b.x - p.x, b.y - p.y) < p.radius + b.radius) {
           collided = true;
-          this.damagePlayer(b.damage);
+          // When crouching, character has smaller tactical exposure and absorbs less damage
+          const finalDmg = p.isCrouching ? Math.round(b.damage * 0.7) : b.damage;
+          this.damagePlayer(finalDmg);
+        } else if (isJumpingDodge && Math.hypot(b.x - p.x, b.y - p.y) < p.radius + b.radius + 8) {
+          // Whistling near-miss spark while jumping over enemy fire
+          this.addParticle(b.x, b.y, b.vx * 0.1, b.vy * 0.1, 0.15, 2, '#38bdf8', 'spark');
         }
       }
 
@@ -1948,7 +2004,7 @@ export class GameEngine {
           if (enemy.state === 'dead') continue;
           if (Math.hypot(b.x - enemy.x, b.y - enemy.y) < enemy.radius + b.radius) {
             collided = true;
-            this.damageEnemy(enemy, b.damage);
+            this.damageEnemy(enemy, b.damage, b.vx, b.vy);
             break;
           }
         }
@@ -1998,16 +2054,73 @@ export class GameEngine {
     }
   }
 
-  private damageEnemy(enemy: Enemy, amount: number) {
-    enemy.health -= amount;
+  private damageEnemy(enemy: Enemy, amount: number, bulletVx?: number, bulletVy?: number) {
+    // 1. HEADSHOT & CRITICAL HIT SYSTEM
+    const isAwm = this.player.currentWeapon === 'awm';
+    const isShotgun = this.player.currentWeapon === 'm1014' || this.player.currentWeapon === 'shotgun';
+    const headshotChance = isAwm ? 0.65 : (isShotgun ? 0.35 : 0.22);
+    const isHeadshot = Math.random() < headshotChance;
+
+    const damageMultiplier = isHeadshot ? (isAwm ? 2.5 : 2.0) : 1.0;
+    const finalAmount = Math.round(amount * damageMultiplier);
+
+    enemy.health -= finalAmount;
     enemy.damageFlash = 1.0;
-    sound.playHit(false);
 
-    this.addFloatingText(enemy.x, enemy.y - 20, `-${Math.round(amount)}`, '#fde047', 13);
+    // Trigger visual hitmarker on HUD
+    this.player.hitmarkerTimer = 0.22;
+    this.player.hitmarkerIsHeadshot = isHeadshot;
 
-    // Alert enemy and turn towards player
-    enemy.state = 'chase';
-    enemy.angle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
+    if (isHeadshot) {
+      sound.playHeadshot();
+      this.addFloatingText(enemy.x, enemy.y - 32, `¡HEADSHOT! -${finalAmount}`, '#ef4444', 18);
+      // Crimson impact sparks
+      for (let s = 0; s < 8; s++) {
+        const ang = Math.random() * Math.PI * 2;
+        this.addParticle(enemy.x, enemy.y, Math.cos(ang) * 95, Math.sin(ang) * 95, 0.28, 4, '#ef4444', 'spark');
+      }
+    } else {
+      sound.playHitmarker();
+      this.addFloatingText(enemy.x, enemy.y - 20, `-${finalAmount}`, '#fde047', 14);
+      for (let s = 0; s < 4; s++) {
+        const ang = Math.random() * Math.PI * 2;
+        this.addParticle(enemy.x, enemy.y, Math.cos(ang) * 60, Math.sin(ang) * 60, 0.2, 3, '#fde047', 'spark');
+      }
+    }
+
+    // 2. STAGGER & KNOCKBACK REACTION
+    if (bulletVx !== undefined && bulletVy !== undefined) {
+      const kDist = Math.hypot(bulletVx, bulletVy);
+      if (kDist > 0.001) {
+        const knock = isHeadshot ? 16 : 8;
+        enemy.x += (bulletVx / kDist) * knock;
+        enemy.y += (bulletVy / kDist) * knock;
+        enemy.vx *= 0.25;
+        enemy.vy *= 0.25;
+      }
+    }
+
+    // 3. SQUAD COMBAT AI: Alert nearby patrol units within 340 units
+    this.enemies.forEach((other) => {
+      if (other.id !== enemy.id && other.state !== 'dead') {
+        const d = Math.hypot(other.x - enemy.x, other.y - enemy.y);
+        if (d < 340 && (other.state === 'patrol' || other.state === 'idle' || other.state === 'search')) {
+          other.state = Math.random() > 0.4 ? 'flank' : 'chase';
+          other.patrolTargetX = this.player.x;
+          other.patrolTargetY = this.player.y;
+        }
+      }
+    });
+
+    // 4. WOUNDED ENEMY COMBAT REACTION
+    if (enemy.health > 0) {
+      if (enemy.health < enemy.maxHealth * 0.35 && !enemy.isBoss) {
+        enemy.state = enemy.type.includes('drone') ? 'retreat' : 'take_cover';
+      } else {
+        enemy.state = 'chase';
+      }
+      enemy.angle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
+    }
 
     if (enemy.health <= 0) {
       enemy.state = 'dead';
@@ -2305,6 +2418,10 @@ export class GameEngine {
     // 3. 3D War Structures (Ruined houses, bunkers, military trucks, barbed wire)
     for (const ws of this.warStructures) {
       if (ws.type === 'room_floor' || ws.type === 'rubble_pile') continue;
+      // Tactical Jump: Vault over sandbag bunkers and low obstacles when jumping!
+      if (entity === (this.player as any) && this.player.isJumping && (this.player.jumpZ || 0) > 12) {
+        if (ws.type === 'sandbag_bunker' || ws.type === 'barbed_wire') continue;
+      }
       const closestX = Math.max(ws.x, Math.min(entity.x, ws.x + ws.w));
       const closestY = Math.max(ws.y, Math.min(entity.y, ws.y + ws.h));
       const dx = entity.x - closestX;

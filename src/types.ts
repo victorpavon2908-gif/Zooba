@@ -85,7 +85,13 @@ export interface Player {
   rollCooldown: number;
   rollVx: number;
   rollVy: number;
+  isJumping?: boolean;
+  jumpZ?: number;
+  jumpVz?: number;
+  jumpCooldown?: number;
   isCrouching?: boolean;
+  hitmarkerTimer?: number;
+  hitmarkerIsHeadshot?: boolean;
   currentWeapon: WeaponId;
   ammo: number;
   isReloading: boolean;

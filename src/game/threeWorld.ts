@@ -862,7 +862,8 @@ export class ThreeWorld {
 
     // 1. Update Player 3D Character
     const groundH = getTerrainHeight(player.x, player.y, mountains);
-    this.playerGroup.position.set(player.x, groundH, player.y);
+    const jumpOffset = player.jumpZ || 0;
+    this.playerGroup.position.set(player.x, groundH + jumpOffset, player.y);
     this.playerGroup.rotation.y = -player.angle + Math.PI / 2;
 
     if (this.tacticalCharacter) {
@@ -875,24 +876,38 @@ export class ThreeWorld {
         player.shotTimer > 0,
         0,
         player.isReloading,
-        player.damageFlash
+        player.damageFlash,
+        !!player.isJumping,
+        jumpOffset
       );
 
       // Weapon fire feedback: Muzzle flash, recoil & shell casings
       if (player.shotTimer > 0) {
-        this.tacticalCharacter.triggerMuzzleFlash();
-        this.cameraRecoilKick = 2.5;
+        const weaponRecoilWeights: Record<string, number> = {
+          ak47: 0.58,
+          awm: 0.85,
+          m1014: 0.68,
+          shotgun: 0.65,
+          m4: 0.38,
+          mp40: 0.26,
+          vector: 0.20,
+          smg: 0.24,
+          pistol: 0.32,
+        };
+        const recoilVal = weaponRecoilWeights[player.currentWeapon] || 0.35;
+        this.tacticalCharacter.triggerMuzzleFlash(recoilVal);
+        this.cameraRecoilKick = recoilVal * 5.0;
 
         if (this.lastShotTimer === 0) {
-          this.playerMuzzleLight.intensity = 3.5;
+          this.playerMuzzleLight.intensity = 3.8;
           this.playerMuzzleLight.position.set(
             player.x + Math.cos(player.angle) * 16,
-            groundH + 16,
+            groundH + jumpOffset + 16,
             player.y + Math.sin(player.angle) * 16
           );
 
           // Eject physical brass shell casing in 3D
-          this.vfx.spawnShellCasing(player.x, groundH + 14, player.y, player.angle);
+          this.vfx.spawnShellCasing(player.x, groundH + jumpOffset + 14, player.y, player.angle);
         }
       } else {
         this.playerMuzzleLight.intensity = Math.max(0, this.playerMuzzleLight.intensity - dt * 25);

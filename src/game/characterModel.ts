@@ -857,15 +857,15 @@ export class TacticalCharacterModel {
   /**
    * Fires a visual muzzle flash burst and tactical light pulse
    */
-  public triggerMuzzleFlash() {
+  public triggerMuzzleFlash(recoilStrength: number = 0.35) {
     this.matMuzzleFlash.opacity = 1.0;
     this.tacticalFlashlight.intensity = 3.5;
-    this.recoilAmount = 0.35;
+    this.recoilAmount = recoilStrength;
   }
 
   /**
    * Per-frame skeletal animation update:
-   * Handles natural running stride, hip bob, spine twist, weapon aiming, crouching & roll
+   * Handles natural running stride, hip bob, spine twist, weapon aiming, crouching, jump & roll
    */
   public animate(
     dt: number,
@@ -876,7 +876,9 @@ export class TacticalCharacterModel {
     isShooting: boolean,
     aimPitch: number = 0,
     isReloading: boolean = false,
-    damageFlash: number = 0
+    damageFlash: number = 0,
+    isJumping: boolean = false,
+    jumpZ: number = 0
   ) {
     const speed = Math.hypot(vx, vy);
     const isMoving = speed > 15;
@@ -891,9 +893,9 @@ export class TacticalCharacterModel {
     }
 
     // Advance walking gait phase
-    if (isMoving) {
+    if (isMoving && !isJumping) {
       this.walkPhase += dt * (speed * 0.052);
-    } else {
+    } else if (!isJumping) {
       // Settle smoothly to idle stance
       this.walkPhase *= 0.85;
     }
@@ -910,23 +912,34 @@ export class TacticalCharacterModel {
       this.group.rotation.x = 0;
     }
 
-    // 2. CROUCH POSTURE
-    const targetHipY = isCrouching ? 8.5 : 14.0 + (isMoving ? Math.abs(Math.sin(this.walkPhase * 2)) * 0.8 : 0);
-    this.hipsGroup.position.y = THREE.MathUtils.lerp(this.hipsGroup.position.y, targetHipY, dt * 10);
+    // 2. JUMPING DYNAMICS (Tucked legs, forward chest lean, elevation)
+    if (isJumping) {
+      this.hipsGroup.position.y = 15.5;
+      this.leftLegGroup.rotation.x = -0.45;
+      this.rightLegGroup.rotation.x = 0.25;
+      this.leftKneeGroup.rotation.x = 0.85;
+      this.rightKneeGroup.rotation.x = 0.65;
+      this.torsoGroup.rotation.x = 0.22;
+      this.torsoGroup.rotation.y = 0;
+    } else {
+      // CROUCH & RUNNING POSTURE
+      const targetHipY = isCrouching ? 8.5 : 14.0 + (isMoving ? Math.abs(Math.sin(this.walkPhase * 2)) * 0.8 : 0);
+      this.hipsGroup.position.y = THREE.MathUtils.lerp(this.hipsGroup.position.y, targetHipY, dt * 10);
 
-    // 3. LEG SWING & FOOT STRIKE GAIT
-    const stride = isMoving ? Math.sin(this.walkPhase) * 0.65 : 0;
-    this.leftLegGroup.rotation.x = stride;
-    this.rightLegGroup.rotation.x = -stride;
+      // LEG SWING & FOOT STRIKE GAIT
+      const stride = isMoving ? Math.sin(this.walkPhase) * 0.65 : 0;
+      this.leftLegGroup.rotation.x = stride;
+      this.rightLegGroup.rotation.x = -stride;
 
-    // Knee bending (backward bend on trailing leg)
-    this.leftKneeGroup.rotation.x = Math.max(0, -stride * 0.8);
-    this.rightKneeGroup.rotation.x = Math.max(0, stride * 0.8);
+      // Knee bending (backward bend on trailing leg)
+      this.leftKneeGroup.rotation.x = Math.max(0, -stride * 0.8);
+      this.rightKneeGroup.rotation.x = Math.max(0, stride * 0.8);
 
-    // 4. TORSO COUNTER-TWIST & BREATHING
-    const twist = isMoving ? Math.sin(this.walkPhase) * 0.12 : 0;
-    this.torsoGroup.rotation.y = -twist;
-    this.torsoGroup.rotation.x = isMoving ? 0.15 : (isCrouching ? 0.35 : 0.05);
+      // TORSO COUNTER-TWIST & BREATHING
+      const twist = isMoving ? Math.sin(this.walkPhase) * 0.12 : 0;
+      this.torsoGroup.rotation.y = -twist;
+      this.torsoGroup.rotation.x = isMoving ? 0.15 : (isCrouching ? 0.35 : 0.05);
+    }
 
     // 5. WEAPON RECOIL RECOVERY & AIM PITCH / RELOAD
     this.recoilAmount = Math.max(0, this.recoilAmount - dt * 4.5);
@@ -939,8 +952,8 @@ export class TacticalCharacterModel {
       this.leftArmGroup.rotation.x = 0.6;
     } else {
       this.weaponSlot.position.y = -10.0;
-      this.weaponSlot.position.z = 6.2 - this.recoilAmount * 3.0;
-      this.weaponSlot.rotation.x = -this.recoilAmount * 0.4 + aimPitch;
+      this.weaponSlot.position.z = 6.2 - this.recoilAmount * 3.5;
+      this.weaponSlot.rotation.x = -this.recoilAmount * 0.45 + aimPitch;
       this.leftArmGroup.rotation.x = 0;
     }
 

@@ -125,6 +125,33 @@ export const HUD: React.FC<HUDProps> = ({
               player.isAimingMode ? 'w-2.5 -right-3.5 bg-emerald-400' : 'w-2 -right-3 bg-white/70'
             }`}
           />
+
+          {/* Free Fire Style Hitmarker Ticks (White for standard hit, Crimson for Headshot) */}
+          {player.hitmarkerTimer && player.hitmarkerTimer > 0 && (
+            <div className={`absolute pointer-events-none flex items-center justify-center transition-transform ${player.hitmarkerIsHeadshot ? 'scale-125' : 'scale-100'}`}>
+              <div className={`absolute w-3 h-0.5 -translate-x-3 -translate-y-3 -rotate-45 rounded-full ${player.hitmarkerIsHeadshot ? 'bg-red-500 shadow-sm shadow-red-500' : 'bg-white shadow-sm shadow-yellow-300'}`} />
+              <div className={`absolute w-3 h-0.5 translate-x-3 -translate-y-3 rotate-45 rounded-full ${player.hitmarkerIsHeadshot ? 'bg-red-500 shadow-sm shadow-red-500' : 'bg-white shadow-sm shadow-yellow-300'}`} />
+              <div className={`absolute w-3 h-0.5 -translate-x-3 translate-y-3 rotate-45 rounded-full ${player.hitmarkerIsHeadshot ? 'bg-red-500 shadow-sm shadow-red-500' : 'bg-white shadow-sm shadow-yellow-300'}`} />
+              <div className={`absolute w-3 h-0.5 translate-x-3 translate-y-3 -rotate-45 rounded-full ${player.hitmarkerIsHeadshot ? 'bg-red-500 shadow-sm shadow-red-500' : 'bg-white shadow-sm shadow-yellow-300'}`} />
+              {player.hitmarkerIsHeadshot && (
+                <div className="absolute -top-6 text-[9px] font-black font-tech tracking-wider text-red-500 animate-bounce">
+                  CRÍTICO
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Combat Stance Indicators */}
+          {player.isCrouching && (
+            <div className="absolute top-7 px-2 py-0.5 rounded-full bg-amber-500/90 text-slate-950 text-[8px] font-black font-tech tracking-wider shadow whitespace-nowrap">
+              COBERTURA (-30% DAÑO)
+            </div>
+          )}
+          {player.isJumping && (
+            <div className="absolute top-7 px-2 py-0.5 rounded-full bg-sky-500/90 text-white text-[8px] font-black font-tech tracking-wider shadow whitespace-nowrap">
+              SALTO TÁCTICO
+            </div>
+          )}
         </div>
       </div>
 

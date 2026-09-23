@@ -49,6 +49,38 @@ class SoundEngine {
     const t = this.ctx.currentTime;
 
     switch (weaponType) {
+      case 'm4': {
+        // Crisp, controlled military burst
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, t);
+        osc.frequency.exponentialRampToValueAtTime(55, t + 0.12);
+        gain.gain.setValueAtTime(0.55, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.13);
+        this.playNoise(0.1, 1900, 0.35);
+        break;
+      }
+      case 'vector': {
+        // High-frequency 1200rpm mechanical buzz
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(480, t);
+        osc.frequency.exponentialRampToValueAtTime(110, t + 0.05);
+        gain.gain.setValueAtTime(0.4, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.06);
+        this.playNoise(0.04, 3000, 0.3);
+        break;
+      }
       case 'ak47': {
         // Free Fire AK47 signature heavy mechanical punch & high calibre blast
         const osc = this.ctx.createOscillator();
@@ -318,6 +350,79 @@ class SoundEngine {
     gain.connect(this.masterGain);
     osc.start(t);
     osc.stop(t + 0.2);
+  }
+
+  public playJump() {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(390, t + 0.13);
+    gain.gain.setValueAtTime(0.28, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.15);
+    this.playNoise(0.06, 1200, 0.2);
+  }
+
+  public playLand() {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.1);
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.12);
+    this.playNoise(0.08, 650, 0.3);
+  }
+
+  public playHitmarker() {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1800, t);
+    osc.frequency.exponentialRampToValueAtTime(900, t + 0.05);
+    gain.gain.setValueAtTime(0.28, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.06);
+  }
+
+  public playHeadshot() {
+    this.init();
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const t = this.ctx.currentTime;
+    // Bell chime + heavy impact
+    const osc1 = this.ctx.createOscillator();
+    const g1 = this.ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(2400, t);
+    osc1.frequency.exponentialRampToValueAtTime(1100, t + 0.18);
+    g1.gain.setValueAtTime(0.48, t);
+    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc1.connect(g1);
+    g1.connect(this.masterGain);
+    osc1.start(t);
+    osc1.stop(t + 0.2);
+
+    this.playNoise(0.12, 2600, 0.38);
   }
 
   public playHit(isPlayer: boolean = false) {

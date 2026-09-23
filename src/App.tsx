@@ -476,6 +476,10 @@ export default function App() {
       if (!engine) return;
 
       if (e.code === 'Space') {
+        engine.triggerJump();
+      } else if (e.code === 'KeyC') {
+        engine.toggleCrouch();
+      } else if (e.code === 'KeyX' || e.code === 'KeyZ') {
         engine.triggerDodge();
       } else if (e.code === 'KeyR') {
         engine.triggerReload();
@@ -795,6 +799,7 @@ export default function App() {
             onAim={handleTouchAim}
             onShoot={handleTouchShoot}
             onDodge={handleTouchDodge}
+            onJump={() => engine.triggerJump()}
             onCrouch={() => engine.toggleCrouch()}
             onReload={handleTouchReload}
             onHeal={handleTouchHeal}
