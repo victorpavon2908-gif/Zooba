@@ -21,6 +21,7 @@ interface RadarProps {
   healthStations?: HealthStation[];
   healthPickups?: HealthPickup[];
   onOpenMap?: () => void;
+  size?: number;
 }
 
 export const Radar: React.FC<RadarProps> = ({
@@ -31,6 +32,7 @@ export const Radar: React.FC<RadarProps> = ({
   healthStations = [],
   healthPickups = [],
   onOpenMap,
+  size = 96,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -40,10 +42,12 @@ export const Radar: React.FC<RadarProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const size = canvas.width;
-    const center = size / 2;
+    const radarSize = size;
+    canvas.width = radarSize;
+    canvas.height = radarSize;
+    const center = radarSize / 2;
     const radarRange = 420; // World distance visible on radar
-    const scale = (size * 0.45) / radarRange;
+    const scale = (radarSize * 0.45) / radarRange;
 
     // Clear
     ctx.clearRect(0, 0, size, size);
@@ -214,8 +218,8 @@ export const Radar: React.FC<RadarProps> = ({
     >
       <canvas
         ref={canvasRef}
-        width={96}
-        height={96}
+        width={size}
+        height={size}
         className="block rounded-md"
       />
       {/* Tactical border accents */}

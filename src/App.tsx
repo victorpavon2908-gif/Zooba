@@ -6,6 +6,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine } from './game/engine';
 import { IsometricRenderer } from './game/renderer';
+import { ThreeWorld } from './game/threeWorld';
+import { LandscapeOrientationGuard } from './components/LandscapeOrientationGuard';
 import { HUD } from './components/HUD';
 import { TouchControls } from './components/TouchControls';
 import { ExtractionSummaryModal } from './components/ExtractionSummaryModal';
@@ -22,6 +24,8 @@ const STORAGE_KEY = 'bounty_run_save_v1';
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const threeCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const threeWorldRef = useRef<ThreeWorld | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(performance.now());
@@ -96,6 +100,7 @@ export default function App() {
     screenShake: true,
     touchControlsStyle: 'twin-stick',
     highGraphics: true,
+    cameraZoom: 'wide',
   });
 
   const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -167,6 +172,7 @@ export default function App() {
     engine.player.armor = armor;
 
     engineRef.current = engine;
+    threeWorldRef.current = null;
     setGameScreen('playing');
     setShowSummary(false);
     setShowArmory(false);
@@ -220,41 +226,180 @@ export default function App() {
           canvas.style.height = `${window.innerHeight}px`;
         }
 
-        // Render Canvas
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          // Camera with screen shake offset
-          let drawCamX = engine.camX;
-          let drawCamY = engine.camY;
-          if (engine.screenShakeAmount > 0) {
-            drawCamX += (Math.random() - 0.5) * engine.screenShakeAmount * 4;
-            drawCamY += (Math.random() - 0.5) * engine.screenShakeAmount * 4;
+        // 1. Initialize 3D World Engine if needed
+        const threeCanvas = threeCanvasRef.current;
+        if (threeCanvas && !threeWorldRef.current && engine) {
+          try {
+            const tw = new ThreeWorld(threeCanvas, engine.arenaSize);
+            tw.initWorld(
+              engine.mountains,
+              engine.houses,
+              engine.caves,
+              engine.militaryFacilities,
+              engine.vegetation,
+              engine.rocks,
+              engine.warStructures,
+              engine.barrels
+            );
+            tw.setGraphicsQuality(settings.graphicsQuality || (settings.highGraphics ? 'high' : 'medium'));
+            threeWorldRef.current = tw;
+          } catch (e) {
+            console.error('WebGL init error, falling back to 2D:', e);
           }
+        }
 
-          IsometricRenderer.render(
-            ctx,
-            canvas,
-            drawCamX,
-            drawCamY,
+        // 2. Render 3D World
+        const tw = threeWorldRef.current;
+        if (tw && threeCanvas) {
+          tw.resize(window.innerWidth, window.innerHeight);
+          tw.render(
+            dt,
             engine.player,
             engine.enemies,
-            engine.bullets,
-            engine.grenades,
-            engine.particles,
-            engine.decals,
-            engine.crates,
-            engine.barrels,
-            engine.walls,
             engine.extraction,
-            engine.floatingTexts,
-            engine.arenaSize,
-            engine.mission.theme,
-            settings.highGraphics,
+            engine.crates,
             engine.healthStations,
             engine.healthPickups,
             engine.glooWalls,
-            engine.warStructures
+            engine.bullets,
+            engine.particles,
+            engine.mountains,
+            engine.screenShakeAmount
           );
+        }
+
+        // 3. Render 2D Tactical Screen Overlay (Lock-On Laser, Reticle, Floating Texts, Damage Indicators)
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (tw) {
+            // Draw Lock-On Target HUD & Laser Beam
+            if (engine.player.aimLockedTargetId) {
+              const targetEnemy = engine.enemies.find(
+                (e) => e.id === engine.player.aimLockedTargetId && e.state !== 'dead'
+              );
+              if (targetEnemy) {
+                const pScreen = tw.toScreenXY(engine.player.x, engine.player.y, 14);
+                const eScreen = tw.toScreenXY(targetEnemy.x, targetEnemy.y, 16);
+
+                if (pScreen.inFront && eScreen.inFront) {
+                  ctx.save();
+                  // Cyan tactical laser targeting beam
+                  ctx.beginPath();
+                  ctx.moveTo(pScreen.x, pScreen.y);
+                  ctx.lineTo(eScreen.x, eScreen.y);
+                  ctx.strokeStyle = 'rgba(6, 182, 212, 0.35)';
+                  ctx.lineWidth = 4;
+                  ctx.stroke();
+
+                  ctx.beginPath();
+                  ctx.moveTo(pScreen.x, pScreen.y);
+                  ctx.lineTo(eScreen.x, eScreen.y);
+                  ctx.strokeStyle = '#38bdf8';
+                  ctx.lineWidth = 1.5;
+                  ctx.stroke();
+
+                  // Lock-on brackets
+                  const bSize = targetEnemy.isBoss ? 48 : 34;
+                  ctx.strokeStyle = '#ef4444';
+                  ctx.lineWidth = 2;
+                  ctx.strokeRect(eScreen.x - bSize / 2, eScreen.y - bSize / 2, bSize, bSize);
+
+                  // Lock-On Header & Distance
+                  const distM = Math.round(Math.hypot(targetEnemy.x - engine.player.x, targetEnemy.y - engine.player.y) / 10);
+                  ctx.fillStyle = '#ef4444';
+                  ctx.font = 'bold 10px monospace';
+                  ctx.textAlign = 'center';
+                  ctx.fillText(`MIRA FIJADA [${distM}m]`, eScreen.x, eScreen.y - bSize / 2 - 6);
+
+                  // Mini target health bar
+                  const barW = 40;
+                  const barH = 4;
+                  const hpRatio = Math.max(0, targetEnemy.health / targetEnemy.maxHealth);
+                  ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                  ctx.fillRect(eScreen.x - barW / 2, eScreen.y + bSize / 2 + 4, barW, barH);
+                  ctx.fillStyle = hpRatio > 0.5 ? '#22c55e' : hpRatio > 0.25 ? '#eab308' : '#ef4444';
+                  ctx.fillRect(eScreen.x - barW / 2, eScreen.y + bSize / 2 + 4, barW * hpRatio, barH);
+
+                  ctx.restore();
+                }
+              }
+            }
+
+            // Draw overhead tactical health badges for nearby or engaged enemies
+            for (const enemy of engine.enemies) {
+              if (enemy.state === 'dead' || enemy.id === engine.player.aimLockedTargetId) continue;
+              const distToP = Math.hypot(enemy.x - engine.player.x, enemy.y - engine.player.y);
+              if (distToP < 320 || enemy.health < enemy.maxHealth || enemy.isBoss) {
+                const eH = enemy.isBoss ? 48 : (enemy.type.includes('drone') ? 42 : 28);
+                const sPos = tw.toScreenXY(enemy.x, enemy.y, eH);
+                if (sPos.inFront && sPos.x >= 20 && sPos.x <= window.innerWidth - 20 && sPos.y >= 20 && sPos.y <= window.innerHeight - 20) {
+                  ctx.save();
+                  const hpRatio = Math.max(0, enemy.health / enemy.maxHealth);
+                  const barW = enemy.isBoss ? 64 : 34;
+                  const barH = enemy.isBoss ? 5 : 3;
+
+                  if (enemy.isBoss || enemy.health < enemy.maxHealth) {
+                    ctx.font = 'bold 9px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = enemy.isBoss ? '#f43f5e' : 'rgba(241, 245, 249, 0.85)';
+                    ctx.fillText(enemy.isBoss ? `TITAN WAR MACHINE` : `${Math.round(enemy.health)} HP`, sPos.x, sPos.y - 4);
+                  }
+
+                  ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                  ctx.fillRect(sPos.x - barW / 2, sPos.y, barW, barH);
+                  ctx.fillStyle = enemy.isBoss ? '#f43f5e' : hpRatio > 0.5 ? '#22c55e' : hpRatio > 0.25 ? '#eab308' : '#ef4444';
+                  ctx.fillRect(sPos.x - barW / 2, sPos.y, barW * hpRatio, barH);
+                  ctx.restore();
+                }
+              }
+            }
+
+            // Draw Floating Combat Texts projected to screen
+            for (const ft of engine.floatingTexts) {
+              const sPos = tw.toScreenXY(ft.x, ft.y, 22);
+              if (sPos.inFront && sPos.x >= 0 && sPos.x <= window.innerWidth && sPos.y >= 0 && sPos.y <= window.innerHeight) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, Math.min(1, ft.alpha));
+                ctx.font = `bold ${Math.max(11, ft.size)}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#000000';
+                ctx.fillText(ft.text, sPos.x + 1, sPos.y + 1);
+                ctx.fillStyle = ft.color;
+                ctx.fillText(ft.text, sPos.x, sPos.y);
+                ctx.restore();
+              }
+            }
+          } else {
+            // Fallback to 2D renderer if 3D failed
+            let drawCamX = engine.camX;
+            let drawCamY = engine.camY;
+            IsometricRenderer.render(
+              ctx,
+              canvas,
+              drawCamX,
+              drawCamY,
+              engine.player,
+              engine.enemies,
+              engine.bullets,
+              engine.grenades,
+              engine.particles,
+              engine.decals,
+              engine.crates,
+              engine.barrels,
+              engine.walls,
+              engine.extraction,
+              engine.floatingTexts,
+              engine.arenaSize,
+              engine.mission.theme,
+              settings.highGraphics,
+              engine.healthStations,
+              engine.healthPickups,
+              engine.glooWalls,
+              engine.warStructures
+            );
+          }
         }
 
         // Trigger React UI HUD update periodically (15 times/sec) to avoid React render churn
@@ -508,6 +653,14 @@ export default function App() {
     engineRef.current?.toggleAimMode();
   }, []);
 
+  const handleCycleCameraZoom = useCallback(() => {
+    if (threeWorldRef.current) {
+      const nextZoom = threeWorldRef.current.cycleCameraZoom();
+      setSettings((prev) => ({ ...prev, cameraZoom: nextZoom }));
+      sound.playCrateOpen();
+    }
+  }, []);
+
   const handleUseLootItem = useCallback((index: number) => {
     engineRef.current?.useMedkit();
   }, []);
@@ -576,10 +729,18 @@ export default function App() {
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-slate-950 font-sans select-none">
-      {/* 2.5D Isometric Game Canvas */}
+      {/* Real 3D WebGL Game World Canvas */}
+      <canvas
+        ref={threeCanvasRef}
+        id="bounty-run-3d-canvas"
+        className="absolute inset-0 w-full h-full block touch-none z-0"
+      />
+
+      {/* 2D Tactical Screen Overlay Canvas for HUD Reticles, Lock-On & Floating Damage */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full block touch-none cursor-crosshair"
+        id="hud-overlay-canvas"
+        className="absolute inset-0 w-full h-full block touch-none pointer-events-none cursor-crosshair z-10"
       />
 
       {/* Title & Mission Briefing Screen */}
@@ -623,6 +784,9 @@ export default function App() {
             onSwitchWeapon={(wId) => engine.switchWeapon(wId)}
             onReload={() => engine.triggerReload()}
             onMelee={() => engine.triggerMelee()}
+            onCrouch={() => engine.toggleCrouch()}
+            cameraZoom={settings.cameraZoom || 'wide'}
+            onCycleCameraZoom={handleCycleCameraZoom}
           />
 
           {/* Touch Virtual Joysticks & Mobile Buttons */}
@@ -631,21 +795,27 @@ export default function App() {
             onAim={handleTouchAim}
             onShoot={handleTouchShoot}
             onDodge={handleTouchDodge}
+            onCrouch={() => engine.toggleCrouch()}
             onReload={handleTouchReload}
             onHeal={handleTouchHeal}
             onInteract={handleTouchInteract}
             onGrenade={handleTouchGrenade}
+            onDeployGlooWall={handleTouchGlooWall}
             onToggleAim={handleTouchToggleAim}
             onSprint={(sprinting) => engine.setSprinting(sprinting)}
             onMelee={() => engine.triggerMelee()}
             onSwitchWeapon={() => engine.cycleNextWeapon()}
             currentWeapon={engine.player.currentWeapon}
+            ammo={engine.player.ammo}
+            maxAmmo={WEAPONS[engine.player.currentWeapon]?.magSize || 30}
             stamina={engine.player.stamina}
             maxStamina={engine.player.maxStamina}
             isSprinting={engine.player.isSprinting}
+            isCrouching={engine.player.isCrouching}
             meleeCooldown={engine.player.meleeCooldown}
             grenadesCount={engine.player.grenades}
             grenadeCooldown={engine.player.grenadeCooldown}
+            glooWallsCount={engine.player.glooWalls}
             isAimingMode={engine.player.isAimingMode}
             isReloading={engine.player.isReloading}
             reloadProgress={engine.player.reloadProgress}
@@ -701,7 +871,16 @@ export default function App() {
         <SettingsModal
           settings={settings}
           onUpdateSettings={(newSettings) => {
-            setSettings((prev) => ({ ...prev, ...newSettings }));
+            setSettings((prev) => {
+              const updated = { ...prev, ...newSettings };
+              if (threeWorldRef.current && (newSettings.graphicsQuality || newSettings.highGraphics !== undefined)) {
+                threeWorldRef.current.setGraphicsQuality(updated.graphicsQuality || (updated.highGraphics ? 'high' : 'medium'));
+              }
+              if (threeWorldRef.current && newSettings.cameraZoom) {
+                threeWorldRef.current.setCameraZoomPreset(newSettings.cameraZoom);
+              }
+              return updated;
+            });
             if (engineRef.current) {
               engineRef.current.settings = { ...engineRef.current.settings, ...newSettings };
             }
@@ -730,6 +909,9 @@ export default function App() {
           arenaSize={engine.arenaSize}
         />
       )}
+
+      {/* Landscape Orientation Enforcement Guard for Mobile Devices */}
+      <LandscapeOrientationGuard />
     </div>
   );
 }

@@ -89,24 +89,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Graphics Quality */}
-          <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-850/60 border border-slate-800">
-            <div>
-              <span className="font-tech font-bold text-slate-200 block">Dynamic Lighting & Shaders</span>
-              <span className="text-[11px] text-slate-400">Atmospheric darkness, spotlight flashlight & glows</span>
+          {/* Camera Zoom FOV Presets */}
+          <div className="p-2.5 rounded-lg bg-slate-850/60 border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-tech font-bold text-slate-200">Cámara & Campo de Visión</span>
+              <Eye className="w-4 h-4 text-emerald-400" />
             </div>
-            <button
-              onClick={() => onUpdateSettings({ highGraphics: !settings.highGraphics })}
-              className={`w-12 h-6 rounded-full transition-colors p-1 relative flex items-center ${
-                settings.highGraphics ? 'bg-emerald-600' : 'bg-slate-700'
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                  settings.highGraphics ? 'translate-x-6' : 'translate-x-0'
-                }`}
-              />
-            </button>
+            <div className="grid grid-cols-3 gap-1.5">
+              {([
+                { id: 'wide', label: 'AMPLIO (MÓVIL)' },
+                { id: 'standard', label: 'ESTÁNDAR' },
+                { id: 'close', label: 'CERCANO' },
+              ] as const).map((opt) => {
+                const current = settings.cameraZoom || 'wide';
+                const isSelected = current === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      onUpdateSettings({ cameraZoom: opt.id });
+                    }}
+                    className={`py-1.5 px-1 rounded border font-tech font-bold text-[10px] tracking-wider uppercase transition-all ${
+                      isSelected
+                        ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300 shadow-sm shadow-emerald-500/30'
+                        : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[10px] text-slate-400 mt-1.5 block">
+              Vista táctica 2.5D alejada para máxima visibilidad de enemigos y terreno
+            </span>
+          </div>
+
+          {/* Graphics Quality Presets */}
+          <div className="p-2.5 rounded-lg bg-slate-850/60 border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-tech font-bold text-slate-200">Graphic Fidelity & Shadows</span>
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {(['low', 'medium', 'high', 'ultra'] as const).map((lvl) => {
+                const current = settings.graphicsQuality || (settings.highGraphics ? 'high' : 'medium');
+                const isSelected = current === lvl;
+                return (
+                  <button
+                    key={lvl}
+                    onClick={() => {
+                      onUpdateSettings({
+                        graphicsQuality: lvl,
+                        highGraphics: lvl === 'high' || lvl === 'ultra',
+                      });
+                    }}
+                    className={`py-1.5 px-1 rounded border font-tech font-bold text-[10px] tracking-wider uppercase transition-all ${
+                      isSelected
+                        ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300 shadow-sm shadow-emerald-500/30'
+                        : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {lvl}
+                  </button>
+                );
+              })}
+            </div>
+            <span className="text-[10px] text-slate-400 mt-1.5 block">
+              PBR materials, soft directional shadows, 3D bullet casings & dynamic VFX
+            </span>
           </div>
 
           {/* Screen Shake */}

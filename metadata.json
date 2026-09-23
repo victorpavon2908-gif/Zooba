@@ -1,6 +1,6 @@
 {
   "name": "Remix Bounty Run 2D - Mobile Extraction Shooter",
-  "description": "An isometric 2.5D extraction shooter with high-fidelity graphics, smooth dual-joystick mobile controls, scavenging, tactical gunplay, and high-stakes extraction.",
+  "description": "A fluid and modern 2.5D tactical mobile extraction shooter with elevated isometric depth, explorable tactical ruins, military vehicles, zero-allocation VFX pooling, and high-stakes combat extraction.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

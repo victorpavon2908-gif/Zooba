@@ -333,6 +333,12 @@ export const TacticalGuideMapModal: React.FC<TacticalGuideMapModalProps> = ({
     <div
       id="tactical-guide-map-modal"
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200"
+      style={{
+        paddingTop: 'max(8px, env(safe-area-inset-top, 8px))',
+        paddingBottom: 'max(8px, env(safe-area-inset-bottom, 8px))',
+        paddingLeft: 'max(12px, env(safe-area-inset-left, 12px))',
+        paddingRight: 'max(12px, env(safe-area-inset-right, 12px))',
+      }}
     >
       <div className="relative w-full max-w-4xl bg-slate-900 border border-cyan-500/40 rounded-xl shadow-2xl flex flex-col max-h-[94vh] overflow-hidden">
         {/* Header */}

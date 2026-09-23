@@ -21,32 +21,35 @@ export const ExtractionSummaryModal: React.FC<ExtractionSummaryModalProps> = ({
   const totalBounty = isSuccess ? lootValue + killBonus + survivalBonus : 100; // $100 pity insurance if dead
 
   return (
-    <div id="extraction-modal-backdrop" className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+    <div
+      id="extraction-modal-backdrop"
+      className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150"
+    >
       <div
         id="extraction-modal-card"
-        className={`w-full max-w-md rounded-xl p-6 border shadow-2xl flex flex-col gap-4 text-slate-100 ${
+        className={`w-full max-w-sm sm:max-w-md rounded-xl p-4 sm:p-5 border shadow-2xl flex flex-col gap-3 text-slate-100 ${
           isSuccess
-            ? 'bg-gradient-to-b from-slate-900 to-emerald-950/40 border-emerald-500/50 shadow-emerald-500/10'
-            : 'bg-gradient-to-b from-slate-900 to-rose-950/40 border-rose-600/50 shadow-rose-500/10'
+            ? 'bg-slate-900/95 border-emerald-500/60 shadow-emerald-500/20'
+            : 'bg-slate-900/95 border-rose-600/60 shadow-rose-500/20'
         }`}
       >
         {/* Header Title */}
-        <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+        <div className="flex items-center gap-2.5 border-b border-slate-800 pb-2.5">
           <div
-            className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+            className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
               isSuccess ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
             }`}
           >
-            {isSuccess ? <ShieldCheck className="w-7 h-7" /> : <Skull className="w-7 h-7" />}
+            {isSuccess ? <ShieldCheck className="w-6 h-6" /> : <Skull className="w-6 h-6" />}
           </div>
           <div>
-            <h2 className="text-xl font-tech font-bold tracking-wide">
-              {isSuccess ? 'EXTRACTION SUCCESSFUL' : 'OPERATIVE K.I.A.'}
+            <h2 className="text-base sm:text-lg font-tech font-bold tracking-wide">
+              {isSuccess ? 'SECTOR EXTRACTION SUCCESSFUL' : 'OPERATIVE K.I.A.'}
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-[11px] text-slate-400">
               {isSuccess
                 ? 'Cargo securely evacuated via helicopter extraction.'
-                : 'Vital signs lost in the combat sector. Unsecured loot lost.'}
+                : 'Vital signs lost in combat sector. Insurance active.'}
             </p>
           </div>
         </div>

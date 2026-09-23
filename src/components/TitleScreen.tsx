@@ -22,7 +22,13 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
   return (
     <div
       id="title-screen-root"
-      className="absolute inset-0 bg-slate-950 flex flex-col justify-between p-4 sm:p-8 z-30 overflow-y-auto bg-scanlines"
+      className="absolute inset-0 bg-slate-950 flex flex-col justify-between p-3 sm:p-6 z-30 overflow-y-auto bg-scanlines"
+      style={{
+        paddingTop: 'max(12px, env(safe-area-inset-top, 12px))',
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))',
+        paddingLeft: 'max(16px, env(safe-area-inset-left, 16px))',
+        paddingRight: 'max(16px, env(safe-area-inset-right, 16px))',
+      }}
     >
       {/* Top Header */}
       <div className="flex items-center justify-between w-full max-w-4xl mx-auto">

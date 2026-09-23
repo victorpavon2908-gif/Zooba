@@ -25,9 +25,17 @@ import {
   MapSector,
   GlooWall,
   WarStructure,
+  House3D,
+  Cave3D,
+  Mountain3D,
+  MilitaryFacility3D,
+  Vegetation3D,
+  Rock3D,
+  AIState,
 } from '../types';
 import { WEAPONS, LOOT_CATALOG } from './gameData';
 import { sound } from '../audio/soundEngine';
+import { createWorldStructures, getTerrainHeight } from './terrain';
 
 export class GameEngine {
   public player: Player;
@@ -49,6 +57,14 @@ export class GameEngine {
   public healthPickups: HealthPickup[] = [];
   public sectors: MapSector[] = [];
   public nearestHealthStation: HealthStation | null = null;
+
+  // 3D Explorable World Elements
+  public mountains: Mountain3D[] = [];
+  public houses: House3D[] = [];
+  public caves: Cave3D[] = [];
+  public militaryFacilities: MilitaryFacility3D[] = [];
+  public vegetation: Vegetation3D[] = [];
+  public rocks: Rock3D[] = [];
 
   public mission: SectorMission;
   public settings: GameSettings;
@@ -162,6 +178,15 @@ export class GameEngine {
 
   private initMap() {
     const size = this.arenaSize;
+
+    // 0. Initialize 3D World Structures (Mountains, Houses, Caves, Facilities, Vegetation, Rocks)
+    const worldStructures = createWorldStructures(size);
+    this.mountains = worldStructures.mountains;
+    this.houses = worldStructures.houses;
+    this.caves = worldStructures.caves;
+    this.militaryFacilities = worldStructures.militaryFacilities;
+    this.vegetation = worldStructures.vegetation;
+    this.rocks = worldStructures.rocks;
 
     // 1. Define the 6 World Sectors
     this.sectors = [
@@ -907,10 +932,10 @@ export class GameEngine {
       const sprintMultiplier = (p.isSprinting && mag > 0.1) ? 1.6 : 1.0;
       const currentSpeed = p.speed * sprintMultiplier;
 
-      // Ultra-fluid acceleration & snappy momentum
+      // Snappy, commercial-grade immediate acceleration & momentum
       const targetVx = normX * currentSpeed;
       const targetVy = normY * currentSpeed;
-      const accelRate = 28;
+      const accelRate = 36;
       p.vx += (targetVx - p.vx) * Math.min(1, dt * accelRate);
       p.vy += (targetVy - p.vy) * Math.min(1, dt * accelRate);
 
@@ -919,12 +944,12 @@ export class GameEngine {
         this.addParticle(p.x, p.y + 4, (Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15, 0.2, 3, 'rgba(148, 163, 184, 0.45)');
       }
     } else {
-      // Snappy responsive braking (no sluggish drifting)
-      const brakeRate = 30;
+      // Snappy responsive braking (immediate stop, no sluggish ice-skating drift)
+      const brakeRate = 42;
       p.vx += (0 - p.vx) * Math.min(1, dt * brakeRate);
       p.vy += (0 - p.vy) * Math.min(1, dt * brakeRate);
-      if (Math.abs(p.vx) < 1) p.vx = 0;
-      if (Math.abs(p.vy) < 1) p.vy = 0;
+      if (Math.abs(p.vx) < 1.5) p.vx = 0;
+      if (Math.abs(p.vy) < 1.5) p.vy = 0;
     }
 
     p.x += p.vx * dt;
@@ -939,12 +964,15 @@ export class GameEngine {
     this.resolvePropCollisions(p);
 
     // =========================================================================
-    // AUTO-AIM ABSOLUTO: En cuanto un robot entra en el campo de visión,
-    // la mira y el personaje apuntan siempre automáticamente al robot.
+    // SMART TACTICAL AIM & ORIENTATION
+    // - When firing or aiming: auto-aim locks on target or follows aim stick.
+    // - When moving/navigating without shooting: character faces travel direction immediately!
     // =========================================================================
+    const aimMag = Math.hypot(this.aimVector.x, this.aimVector.y);
+    const isCombatIntent = this.isShootingIntent || p.isAimingMode || aimMag > 0.15;
     const target = this.findAutoAimTarget();
 
-    if (target) {
+    if (isCombatIntent && target) {
       if (p.aimLockedTargetId !== target.id) {
         p.aimLockedTargetId = target.id;
         sound.playLockOn();
@@ -952,19 +980,40 @@ export class GameEngine {
           navigator.vibrate(18);
         }
       }
-      // La mira apunta AL ROBOT SIEMPRE mientras esté en el campo de visión
+      // Orient smoothly and quickly towards target during combat
       const angleToRobot = Math.atan2(target.y - p.y, target.x - p.x);
-      p.angle = angleToRobot;
+      let angleDiff = angleToRobot - p.angle;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+      p.angle += angleDiff * Math.min(1.0, dt * 22.0);
+      this.cursorWorldPos = { x: target.x, y: target.y };
+    } else if (aimMag > 0.15) {
+      // Manual Aim Stick orientation
+      p.aimLockedTargetId = null;
+      const targetAimAngle = Math.atan2(this.aimVector.y, this.aimVector.x);
+      let diff = targetAimAngle - p.angle;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      p.angle += diff * Math.min(1.0, dt * 24.0);
+    } else if (mag > 0.08) {
+      // Smooth travel direction orientation (no backwards moonwalking!)
+      p.aimLockedTargetId = null;
+      const targetMoveAngle = Math.atan2(p.vy, p.vx);
+      let diff = targetMoveAngle - p.angle;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      p.angle += diff * Math.min(1.0, dt * 20.0);
+    } else if (target && this.settings.autoAim) {
+      // Idle sentry lock-on when standing still
+      p.aimLockedTargetId = target.id;
+      const angleToRobot = Math.atan2(target.y - p.y, target.x - p.x);
+      let angleDiff = angleToRobot - p.angle;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+      p.angle += angleDiff * Math.min(1.0, dt * 14.0);
       this.cursorWorldPos = { x: target.x, y: target.y };
     } else {
       p.aimLockedTargetId = null;
-      const aimMag = Math.hypot(this.aimVector.x, this.aimVector.y);
-      if (aimMag > 0.15) {
-        // Control por joystick táctil de disparo cuando no hay robot en visión
-        p.angle = Math.atan2(this.aimVector.y, this.aimVector.x);
-      } else if (mag > 0.1) {
-        p.angle = Math.atan2(p.vy, p.vx);
-      }
     }
 
     // Weapon Reloading
@@ -990,8 +1039,7 @@ export class GameEngine {
   public findAutoAimTarget(): Enemy | null {
     let bestEnemy: Enemy | null = null;
     let minScore = Infinity;
-    // Campo de visión completo visible en pantalla (600px en el plano del mundo)
-    const viewRadius = 600;
+    const viewRadius = 580;
 
     for (const enemy of this.enemies) {
       if (enemy.state === 'dead') continue;
@@ -1000,12 +1048,20 @@ export class GameEngine {
       const dist = Math.hypot(dx, dy);
 
       if (dist <= viewRadius) {
-        // Prioriza distancia y alineación
+        // Línea de visión directa sin muros sólidos interfiriendo
+        if (!this.hasLineOfSight(this.player.x, this.player.y, enemy.x, enemy.y)) {
+          continue;
+        }
+
         const enemyAngle = Math.atan2(dy, dx);
         let angleDiff = Math.abs(this.player.angle - enemyAngle);
         while (angleDiff > Math.PI) angleDiff = Math.abs(angleDiff - Math.PI * 2);
 
-        const score = dist + angleDiff * 40;
+        // Prioridad sticky al objetivo actualmente fijado para evitar saltos erráticos
+        const isCurrentTarget = this.player.aimLockedTargetId === enemy.id;
+        const stickyBonus = isCurrentTarget ? -130 : 0;
+
+        const score = dist + angleDiff * 55 + stickyBonus;
         if (score < minScore) {
           minScore = score;
           bestEnemy = enemy;
@@ -1014,6 +1070,52 @@ export class GameEngine {
     }
 
     return bestEnemy;
+  }
+
+  public hasLineOfSight(x1: number, y1: number, x2: number, y2: number): boolean {
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
+
+    for (const w of this.walls) {
+      if (w.x + w.w < minX || w.x > maxX || w.y + w.h < minY || w.y > maxY) continue;
+      if (this.lineIntersectsBox(x1, y1, x2, y2, w.x, w.y, w.w, w.h)) {
+        return false;
+      }
+    }
+
+    for (const gw of this.glooWalls) {
+      const d = this.distToSegment(gw.x, gw.y, x1, y1, x2, y2);
+      if (d < gw.width * 0.45) return false;
+    }
+
+    return true;
+  }
+
+  private lineIntersectsBox(x1: number, y1: number, x2: number, y2: number, bx: number, by: number, bw: number, bh: number): boolean {
+    return (
+      this.lineIntersectsLine(x1, y1, x2, y2, bx, by, bx + bw, by) ||
+      this.lineIntersectsLine(x1, y1, x2, y2, bx + bw, by, bx + bw, by + bh) ||
+      this.lineIntersectsLine(x1, y1, x2, y2, bx + bw, by + bh, bx, by + bh) ||
+      this.lineIntersectsLine(x1, y1, x2, y2, bx, by + bh, bx, by)
+    );
+  }
+
+  private lineIntersectsLine(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, x4: number, y4: number): boolean {
+    const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+    if (denom === 0) return false;
+    const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+    const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+    return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+  }
+
+  private distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+    const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+    if (l2 === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
   }
 
   public firePlayerWeapon() {
@@ -1566,63 +1668,182 @@ export class GameEngine {
       const distToPlayer = Math.hypot(p.x - enemy.x, p.y - enemy.y);
       const angleToPlayer = Math.atan2(p.y - enemy.y, p.x - enemy.x);
 
-      // Check vision / detection
+      // Vision check with line of sight
       const angleDiff = Math.abs(((angleToPlayer - enemy.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      const hasLOS = this.hasLineOfSight(enemy.x, enemy.y, p.x, p.y);
       const canSeePlayer =
+        hasLOS &&
         distToPlayer < enemy.visionRange &&
-        (angleDiff < enemy.fovAngle * 0.5 || distToPlayer < 90);
+        (angleDiff < enemy.fovAngle * 0.5 || distToPlayer < 95);
 
-      // State machine
-      if (canSeePlayer || enemy.state === 'chase' || enemy.state === 'attack') {
-        if (enemy.state === 'patrol' || enemy.state === 'idle') {
+      // Titan Boss Phase logic
+      if (enemy.isBoss || enemy.type === 'titan_boss' || enemy.type === 'boss') {
+        const hpRatio = enemy.health / enemy.maxHealth;
+        if (hpRatio <= 0.33) {
+          enemy.bossPhase = 3; // Frenzy / Enraged phase
+          enemy.speed = 150;
+        } else if (hpRatio <= 0.66) {
+          enemy.bossPhase = 2; // Missile & defense drone phase
+          enemy.speed = 120;
+        } else {
+          enemy.bossPhase = 1;
+        }
+      }
+
+      // AI State Transitions
+      if (canSeePlayer) {
+        if (enemy.state === 'patrol' || enemy.state === 'idle' || enemy.state === 'search') {
           sound.playEnemyAlert();
-          this.addFloatingText(enemy.x, enemy.y - 30, '!', '#ef4444', 14);
+          this.addFloatingText(enemy.x, enemy.y - 30, '¡ALERTA!', '#ef4444', 14);
+          enemy.state = 'detect';
+          enemy.alertTimer = 0.25;
         }
 
-        enemy.angle = angleToPlayer;
+        // Low health tactical behavior: TAKE_COVER or RETREAT
+        const hpRatio = enemy.health / enemy.maxHealth;
+        if (hpRatio < 0.35 && !enemy.isBoss) {
+          if (enemy.type.includes('drone')) {
+            enemy.state = 'retreat';
+          } else {
+            enemy.state = 'take_cover';
+          }
+        } else if (distToPlayer <= enemy.range) {
+          // Tactical Flanking vs Direct Attack
+          if (enemy.type === 'rusher' || enemy.type === 'assault_bot') {
+            enemy.state = 'flank';
+          } else {
+            enemy.state = 'attack';
+          }
+        } else {
+          enemy.state = 'chase';
+        }
+      } else if (enemy.state === 'chase' || enemy.state === 'attack' || enemy.state === 'flank') {
+        // Lost sight of player: transition to SEARCH
+        enemy.state = 'search';
+        enemy.searchTimer = 4.0;
+        enemy.patrolTargetX = p.x + (Math.random() - 0.5) * 80;
+        enemy.patrolTargetY = p.y + (Math.random() - 0.5) * 80;
+      }
 
-        if (distToPlayer <= enemy.range) {
-          enemy.state = 'attack';
-          // Enemy attacks
+      // AI State Execution
+      switch (enemy.state) {
+        case 'detect':
+          enemy.alertTimer = (enemy.alertTimer || 0) - dt;
+          enemy.angle = angleToPlayer;
+          enemy.vx = 0;
+          enemy.vy = 0;
+          if (enemy.alertTimer <= 0) {
+            enemy.state = 'chase';
+          }
+          break;
+
+        case 'attack':
+          enemy.angle = angleToPlayer;
           if (enemy.attackCooldown <= 0 && !p.isRolling) {
             enemy.attackCooldown = enemy.attackRate;
             this.fireEnemyWeapon(enemy);
+
+            // Boss multi-shot
+            if (enemy.bossPhase === 2 && Math.random() < 0.4) {
+              setTimeout(() => {
+                if (enemy.state !== 'dead') this.fireEnemyWeapon(enemy);
+              }, 180);
+            }
           }
-          // Slight strafe
-          enemy.vx = Math.sin(Date.now() * 0.003 + enemy.id) * (enemy.speed * 0.4);
-          enemy.vy = Math.cos(Date.now() * 0.003 + enemy.id) * (enemy.speed * 0.4);
-        } else {
-          enemy.state = 'chase';
+          // Lateral combat strafe
+          const strafeAngle = angleToPlayer + Math.PI / 2;
+          const strafeDir = Math.sin(Date.now() * 0.004 + enemy.id);
+          enemy.vx = Math.cos(strafeAngle) * strafeDir * (enemy.speed * 0.55);
+          enemy.vy = Math.sin(strafeAngle) * strafeDir * (enemy.speed * 0.55);
+          break;
+
+        case 'flank':
+          // Circle around player while keeping distance
+          enemy.angle = angleToPlayer;
+          enemy.flankDirection = enemy.flankDirection || (Math.random() > 0.5 ? 1 : -1);
+          const flankTargetAngle = angleToPlayer + (Math.PI * 0.4) * enemy.flankDirection;
+          enemy.vx = Math.cos(flankTargetAngle) * enemy.speed;
+          enemy.vy = Math.sin(flankTargetAngle) * enemy.speed;
+          if (enemy.attackCooldown <= 0 && distToPlayer <= enemy.range * 1.1) {
+            enemy.attackCooldown = enemy.attackRate;
+            this.fireEnemyWeapon(enemy);
+          }
+          break;
+
+        case 'take_cover':
+          // Move away from player line of sight towards nearest wall or rock
+          const coverAngle = angleToPlayer + Math.PI;
+          enemy.angle = angleToPlayer;
+          enemy.vx = Math.cos(coverAngle) * (enemy.speed * 0.85);
+          enemy.vy = Math.sin(coverAngle) * (enemy.speed * 0.85);
+          if (enemy.attackCooldown <= 0 && Math.random() < 0.3) {
+            enemy.attackCooldown = enemy.attackRate * 1.5;
+            this.fireEnemyWeapon(enemy);
+          }
+          break;
+
+        case 'retreat':
+          // Drone or wounded unit fleeing
+          const retreatAngle = angleToPlayer + Math.PI;
+          enemy.angle = retreatAngle;
+          enemy.vx = Math.cos(retreatAngle) * (enemy.speed * 1.1);
+          enemy.vy = Math.sin(retreatAngle) * (enemy.speed * 1.1);
+          break;
+
+        case 'search':
+          enemy.searchTimer = (enemy.searchTimer || 0) - dt;
+          const searchDist = Math.hypot(enemy.patrolTargetX - enemy.x, enemy.patrolTargetY - enemy.y);
+          if (searchDist > 20) {
+            const sAngle = Math.atan2(enemy.patrolTargetY - enemy.y, enemy.patrolTargetX - enemy.x);
+            enemy.angle = sAngle;
+            enemy.vx = Math.cos(sAngle) * (enemy.speed * 0.65);
+            enemy.vy = Math.sin(sAngle) * (enemy.speed * 0.65);
+          } else {
+            enemy.vx = 0;
+            enemy.vy = 0;
+            enemy.angle += dt * 1.8; // Looking around 360°
+          }
+          if (enemy.searchTimer <= 0) {
+            enemy.state = 'patrol';
+            enemy.patrolTimer = 2.0;
+          }
+          break;
+
+        case 'chase':
+          enemy.angle = angleToPlayer;
           enemy.vx = Math.cos(angleToPlayer) * enemy.speed;
           enemy.vy = Math.sin(angleToPlayer) * enemy.speed;
-        }
-      } else {
-        // Patrol behavior
-        enemy.state = 'patrol';
-        enemy.patrolTimer -= dt;
-        if (enemy.patrolTimer <= 0) {
-          enemy.patrolTimer = 2.5 + Math.random() * 3;
-          enemy.patrolTargetX = enemy.patrolOriginX + (Math.random() - 0.5) * 160;
-          enemy.patrolTargetY = enemy.patrolOriginY + (Math.random() - 0.5) * 160;
-        }
+          break;
 
-        const distToTarget = Math.hypot(enemy.patrolTargetX - enemy.x, enemy.patrolTargetY - enemy.y);
-        if (distToTarget > 15) {
-          const pAngle = Math.atan2(enemy.patrolTargetY - enemy.y, enemy.patrolTargetX - enemy.x);
-          enemy.angle = pAngle;
-          enemy.vx = Math.cos(pAngle) * (enemy.speed * 0.45);
-          enemy.vy = Math.sin(pAngle) * (enemy.speed * 0.45);
-        } else {
-          enemy.vx = 0;
-          enemy.vy = 0;
-        }
+        case 'patrol':
+        default:
+          enemy.patrolTimer -= dt;
+          if (enemy.patrolTimer <= 0) {
+            enemy.patrolTimer = 3.0 + Math.random() * 3.5;
+            enemy.patrolTargetX = enemy.patrolOriginX + (Math.random() - 0.5) * 180;
+            enemy.patrolTargetY = enemy.patrolOriginY + (Math.random() - 0.5) * 180;
+          }
+          const pDist = Math.hypot(enemy.patrolTargetX - enemy.x, enemy.patrolTargetY - enemy.y);
+          if (pDist > 16) {
+            const pAngle = Math.atan2(enemy.patrolTargetY - enemy.y, enemy.patrolTargetX - enemy.x);
+            enemy.angle = pAngle;
+            enemy.vx = Math.cos(pAngle) * (enemy.speed * 0.45);
+            enemy.vy = Math.sin(pAngle) * (enemy.speed * 0.45);
+          } else {
+            enemy.vx = 0;
+            enemy.vy = 0;
+          }
+          break;
       }
 
       enemy.x += enemy.vx * dt;
       enemy.y += enemy.vy * dt;
 
-      // Obstacle collisions
+      // Obstacle & boundary collisions
       this.resolveWallCollisions(enemy);
+      this.resolvePropCollisions(enemy);
+      enemy.x = Math.max(50, Math.min(this.arenaSize - 50, enemy.x));
+      enemy.y = Math.max(50, Math.min(this.arenaSize - 50, enemy.y));
     });
   }
 
@@ -2092,6 +2313,41 @@ export class GameEngine {
 
       if (dist < entity.radius && dist > 0.001) {
         const overlap = entity.radius - dist;
+        entity.x += (dx / dist) * overlap;
+        entity.y += (dy / dist) * overlap;
+      }
+    }
+
+    // 4. 3D Houses Outer Walls (with doorway clearance)
+    for (const h of this.houses) {
+      const halfW = h.width / 2;
+      const halfD = h.depth / 2;
+      if (Math.abs(entity.x - h.x) < halfW + entity.radius && Math.abs(entity.y - h.y) < halfD + entity.radius) {
+        const dDist = Math.hypot(entity.x - h.doorX, entity.y - h.doorY);
+        if (dDist > h.doorWidth * 0.6) {
+          const overlapL = entity.x - (h.x - halfW);
+          const overlapR = h.x + halfW - entity.x;
+          const overlapT = entity.y - (h.y - halfD);
+          const overlapB = h.y + halfD - entity.y;
+          const minOverlap = Math.min(overlapL, overlapR, overlapT, overlapB);
+          if (minOverlap > 0 && minOverlap < entity.radius + 6) {
+            if (minOverlap === overlapL) entity.x = h.x - halfW - entity.radius;
+            else if (minOverlap === overlapR) entity.x = h.x + halfW + entity.radius;
+            else if (minOverlap === overlapT) entity.y = h.y - halfD - entity.radius;
+            else entity.y = h.y + halfD + entity.radius;
+          }
+        }
+      }
+    }
+
+    // 5. 3D Rocks
+    for (const r of this.rocks) {
+      const dx = entity.x - r.x;
+      const dy = entity.y - r.y;
+      const dist = Math.hypot(dx, dy);
+      const minD = entity.radius + r.radius * 0.85;
+      if (dist < minD && dist > 0.001) {
+        const overlap = minD - dist;
         entity.x += (dx / dist) * overlap;
         entity.y += (dy / dist) * overlap;
       }

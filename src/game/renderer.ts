@@ -7,10 +7,53 @@
 import { Player, Enemy, Bullet, Particle, FloorDecal, Crate, Barrel, Wall, ExtractionZone, FloatingText, Grenade, HealthStation, HealthPickup, GlooWall, WarStructure } from '../types';
 
 export class IsometricRenderer {
-  // Isometric scale factors (2:1 projection with comfortable 1.35x tactical zoom for pro visibility)
-  public static readonly ZOOM = 1.35;
-  public static readonly ISO_COS = 0.866025 * 1.35; // cos(30°) * 1.35 (~1.16913)
-  public static readonly ISO_SIN = 0.5 * 1.35;      // sin(30°) * 1.35 (0.675)
+  // Isometric scale factors with dynamic adaptive calculation
+  public static ZOOM = 1.35;
+  public static ISO_COS = 0.866025 * 1.35; // cos(30°) * zoom
+  public static ISO_SIN = 0.5 * 1.35;      // sin(30°) * zoom
+  private static lastW = 0;
+  private static lastH = 0;
+
+  /**
+   * Adapts camera zoom to phone / tablet / wide aspect ratio so field of view
+   * is balanced, neither zoomed in too close on small screens nor too miniature on large tablets.
+   */
+  public static updateAdaptiveCamera(canvasW: number, canvasH: number): number {
+    if (canvasW === this.lastW && canvasH === this.lastH) {
+      return this.ZOOM;
+    }
+    this.lastW = canvasW;
+    this.lastH = canvasH;
+
+    const minDim = Math.min(canvasW, canvasH);
+    const maxDim = Math.max(canvasW, canvasH);
+    const aspect = maxDim / Math.max(1, minDim);
+
+    let zoom = 1.32;
+    // Small phone screen (e.g. height < 380 in landscape)
+    if (minDim < 370) {
+      zoom = 1.15; // Pull back slightly for wider tactical peripheral vision
+    } else if (minDim < 430) {
+      zoom = 1.25; // Standard modern phone (e.g. 390x844)
+    } else if (minDim >= 700) {
+      // Tablets (iPad 768x1024, iPad Pro 1024x1366, 16:10 Android tablets)
+      // On tablets, minDim is 700+, we scale comfortably so heroes and enemies aren't tiny dots
+      zoom = Math.min(1.52, 1.32 + ((minDim - 430) / 600) * 0.22);
+    } else {
+      // Large phones / small tablets
+      zoom = 1.25 + ((minDim - 430) / 270) * 0.08;
+    }
+
+    // Aspect ratio compensator: if ultra-wide (>= 2.1:1, e.g. 20:9 or 21:9), height is tighter
+    if (aspect > 2.05 && minDim < 460) {
+      zoom *= 0.96;
+    }
+
+    this.ZOOM = zoom;
+    this.ISO_COS = 0.866025 * zoom;
+    this.ISO_SIN = 0.5 * zoom;
+    return zoom;
+  }
 
   public static toScreen(
     worldX: number,
@@ -20,6 +63,7 @@ export class IsometricRenderer {
     canvasW: number,
     canvasH: number
   ): { x: number; y: number } {
+    this.updateAdaptiveCamera(canvasW, canvasH);
     const dx = worldX - camX;
     const dy = worldY - camY;
     return {
@@ -36,6 +80,7 @@ export class IsometricRenderer {
     canvasW: number,
     canvasH: number
   ): { x: number; y: number } {
+    this.updateAdaptiveCamera(canvasW, canvasH);
     const sx = screenX - canvasW / 2;
     const sy = screenY - canvasH / 2;
     const isoFactor = sx / IsometricRenderer.ISO_COS;
@@ -77,6 +122,8 @@ export class IsometricRenderer {
     // Calculate logical screen size in CSS pixels for pixel-perfect viewport centering
     const w = canvas.clientWidth || (canvas.width / dpr);
     const h = canvas.clientHeight || (canvas.height / dpr);
+
+    this.updateAdaptiveCamera(w, h);
 
     ctx.save();
     // Configure crisp DPI scaling

@@ -1,6 +1,6 @@
 export type GameScreen = 'menu' | 'playing' | 'extracted' | 'gameover' | 'armory' | 'briefing';
 
-export type WeaponId = 'pistol' | 'smg' | 'shotgun' | 'rifle' | 'plasma' | 'ak47' | 'mp40' | 'm1014' | 'awm' | 'katana';
+export type WeaponId = 'pistol' | 'smg' | 'shotgun' | 'rifle' | 'plasma' | 'ak47' | 'mp40' | 'm1014' | 'awm' | 'katana' | 'vector' | 'm4';
 
 export interface Weapon {
   id: WeaponId;
@@ -132,21 +132,51 @@ export interface Grenade {
   exploded: boolean;
 }
 
-export type EnemyType = 'grunt' | 'enforcer' | 'heavy' | 'boss' | 'sniper' | 'rusher' | 'drone';
+export type EnemyType =
+  | 'grunt'
+  | 'enforcer'
+  | 'heavy'
+  | 'boss'
+  | 'sniper'
+  | 'rusher'
+  | 'drone'
+  | 'scout_drone'
+  | 'combat_drone'
+  | 'sentinel'
+  | 'assault_bot'
+  | 'heavy_bot'
+  | 'defense_turret'
+  | 'titan_boss';
+
+export type AIState =
+  | 'idle'
+  | 'patrol'
+  | 'search'
+  | 'detect'
+  | 'chase'
+  | 'attack'
+  | 'take_cover'
+  | 'flank'
+  | 'retreat'
+  | 'alert'
+  | 'dead';
 
 export interface Enemy {
   id: number;
   type: EnemyType;
   x: number;
   y: number;
+  z?: number; // 3D elevation
   vx: number;
   vy: number;
+  vz?: number;
   radius: number;
   speed: number;
   health: number;
   maxHealth: number;
   angle: number;
-  state: 'idle' | 'patrol' | 'chase' | 'attack' | 'dead';
+  pitch?: number;
+  state: AIState;
   patrolOriginX: number;
   patrolOriginY: number;
   patrolTargetX: number;
@@ -163,11 +193,21 @@ export interface Enemy {
   color: string;
   beanieColor: string;
   isBoss?: boolean;
-  // Pro Combat Robot Attributes
+  // Advanced 3D Robot Attributes & AI Behaviors
   robotModel?: string;
   eyeColor?: string;
   chassisColor?: string;
   laserAimActive?: boolean;
+  flightAltitude?: number;
+  alertTimer?: number;
+  searchTimer?: number;
+  coverTargetX?: number;
+  coverTargetY?: number;
+  flankTimer?: number;
+  flankDirection?: number;
+  bossPhase?: number;
+  shieldHp?: number;
+  maxShieldHp?: number;
 }
 
 export interface HealthStation {
@@ -273,6 +313,94 @@ export interface Wall {
   label?: string;
 }
 
+export interface Furniture3D {
+  id: number;
+  type: 'table' | 'chair' | 'bed' | 'wardrobe' | 'desk' | 'cabinet' | 'lamp' | 'debris' | 'pipes';
+  x: number;
+  y: number;
+  z: number;
+  width: number;
+  depth: number;
+  height: number;
+  rotation: number;
+}
+
+export interface House3D {
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  height: number;
+  rotation: number;
+  doorX: number;
+  doorY: number;
+  doorWidth: number;
+  doorWall: 'north' | 'south' | 'east' | 'west';
+  hasRoof: boolean;
+  isRuined: boolean;
+  furniture: Furniture3D[];
+  lootCrates: number[]; // crate ids inside
+}
+
+export interface Cave3D {
+  id: number;
+  name: string;
+  entranceX: number;
+  entranceY: number;
+  interiorX: number;
+  interiorY: number;
+  radius: number;
+  tunnelLength: number;
+  tunnelAngle: number;
+  ambientLightColor: string;
+  hasWater: boolean;
+  stalagmitesCount: number;
+  treasureCrateId: number;
+}
+
+export interface Mountain3D {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  peakHeight: number;
+  roughness: number;
+}
+
+export interface MilitaryFacility3D {
+  id: number;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  height: number;
+  hasAntenna: boolean;
+  hasGenerators: boolean;
+  hasPipes: boolean;
+  alarmActive: boolean;
+}
+
+export interface Vegetation3D {
+  id: number;
+  type: 'tree' | 'bush' | 'shrub' | 'tall_grass';
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+}
+
+export interface Rock3D {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  height: number;
+  rotation: number;
+}
+
 export interface ExtractionZone {
   x: number;
   y: number;
@@ -317,4 +445,6 @@ export interface GameSettings {
   screenShake: boolean;
   touchControlsStyle: 'twin-stick' | 'auto-target-button';
   highGraphics: boolean;
+  graphicsQuality?: 'low' | 'medium' | 'high' | 'ultra';
+  cameraZoom?: 'wide' | 'standard' | 'close';
 }
